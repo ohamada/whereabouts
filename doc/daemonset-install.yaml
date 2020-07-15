@@ -27,6 +27,7 @@ rules:
   - whereabouts.cni.cncf.io
   resources:
   - ippools
+  - clusteripreservations
   verbs:
   - get
   - list

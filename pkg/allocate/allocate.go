@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/dougbtv/whereabouts/pkg/logging"
+	// "github.com/dougbtv/whereabouts/pkg/storage"
 	"github.com/dougbtv/whereabouts/pkg/types"
 )
 
@@ -134,6 +135,15 @@ MAINITERATION:
 				continue MAINITERATION
 			}
 		}
+
+		// // Here's where we can check to see if it's reserved cluster wide
+		// // This allows for overlapping ranges.
+		// logging.Debugf("Checking for cluster ip reservation... !bang")
+		// isallocated, err := storage.IsAllocatedClusterWide(stringip, ipamConf)
+		// // We skip anything that's already allocated cluster wide.
+		// if isallocated {
+		// 	continue
+		// }
 
 		// Ok, this one looks like we can assign it!
 		performedassignment = true

@@ -10,6 +10,7 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/concurrency"
 	"github.com/coreos/etcd/pkg/transport"
+	"github.com/dougbtv/whereabouts/pkg/logging"
 	"github.com/dougbtv/whereabouts/pkg/types"
 )
 
@@ -72,6 +73,12 @@ type ETCDIPAM struct {
 func (i *ETCDIPAM) Status(ctx context.Context) error {
 	_, err := i.kv.Get(ctx, "anykey")
 	return err
+}
+
+// IsAllocatedClusterWide checks to
+func (i *ETCDIPAM) IsAllocatedClusterWide(ctx context.Context, ip net.IP) (bool, error) {
+	logging.Debugf("ETCD IsAllocatedClusterWide is NOT IMPLEMENTED!!!! TODO")
+	return false, nil
 }
 
 // Close shuts down the clients etcd connections

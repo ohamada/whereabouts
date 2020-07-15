@@ -142,6 +142,30 @@ func (i *KubernetesIPAM) getPool(ctx context.Context, name string, iprange strin
 	return pool, nil
 }
 
+// IsAllocatedClusterWide checks for IP addresses to see if they're allocated cluster wide
+func (i *KubernetesIPAM) IsAllocatedClusterWide(ctx context.Context, ip net.IP) (bool, error) {
+
+	// IPv6 doesn't make for valid CR names, so normalize it.
+	normalizedip := strings.ReplaceAll(fmt.Sprint(ip), "::", "-")
+
+	logging.Debugf("Clusterwide allocation check for IP: %v / namespace: %v", normalizedip, i.namespace)
+
+	clusteripres := &whereaboutsv1alpha1.ClusterIPReservation{
+		ObjectMeta: metav1.ObjectMeta{Name: normalizedip, Namespace: i.namespace},
+	}
+	if err := i.client.Get(ctx, types.NamespacedName{Name: normalizedip, Namespace: i.namespace}, clusteripres); errors.IsNotFound(err) {
+		// cluster ip reservation does not exist, this appears to be good news.
+		logging.Debugf("IP %v is not reserved cluster wide, allowing.", ip)
+		return false, nil
+	} else if err != nil {
+		logging.Errorf("k8s get ClusterIPReservation error: %s", err)
+		return false, fmt.Errorf("k8s get ClusterIPReservation error: %s", err)
+	}
+
+	logging.Debugf("IP %v is reserved cluster wide.", ip)
+	return true, nil
+}
+
 // Status tests connectivity to the kubernetes backend
 func (i *KubernetesIPAM) Status(ctx context.Context) error {
 	list := &whereaboutsv1alpha1.IPPoolList{}
@@ -192,7 +216,7 @@ func (p *KubernetesIPPool) Update(ctx context.Context, reservations []whereabout
 	// add additional tests to the patch
 	ops := []jsonpatch.Operation{
 		// ensure patch is applied to appropriate resource version only
-		jsonpatch.Operation{Operation: "test", Path: "/metadata/resourceVersion", Value: orig.ObjectMeta.ResourceVersion},
+		{Operation: "test", Path: "/metadata/resourceVersion", Value: orig.ObjectMeta.ResourceVersion},
 	}
 	for _, o := range patch {
 		// safeguard add ops -- "add" will update existing paths, this "test" ensures the path is empty

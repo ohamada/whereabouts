@@ -28,6 +28,7 @@ type IPPool interface {
 // Store is the interface that wraps the basic IP Allocation methods on the underlying storage backend
 type Store interface {
 	GetIPPool(ctx context.Context, ipRange string) (IPPool, error)
+	IsAllocatedClusterWide(ctx context.Context, ip net.IP) (bool, error)
 	Status(ctx context.Context) error
 	Close() error
 }
@@ -70,6 +71,7 @@ func IPManagement(mode int, ipamConf types.IPAMConfig, containerID string) (net.
 	}
 
 	// handle the ip add/del until successful
+	var clusterwideallocations []types.IPReservation
 RETRYLOOP:
 	for j := 0; j < DatastoreRetries; j++ {
 		select {
@@ -89,6 +91,7 @@ RETRYLOOP:
 		}
 
 		reservelist := pool.Allocations()
+		reservelist = append(reservelist, clusterwideallocations...)
 		var updatedreservelist []types.IPReservation
 		switch mode {
 		case types.Allocate:
@@ -97,6 +100,22 @@ RETRYLOOP:
 				logging.Errorf("Error assigning IP: %v", err)
 				return newip, err
 			}
+			// !bang
+			// Now check if this is allocated cluster wide
+			// When it's allocated cluster wide, we add it to a local reserved list
+			// And we try again.
+			isallocated, err := ipam.IsAllocatedClusterWide(ctx, newip.IP)
+			if err != nil {
+				logging.Errorf("Error checking clusterwide allocation: %v", err)
+				return newip, err
+			}
+
+			if isallocated {
+				logging.Debugf("Continuing loop, IP is already allocated (possibly from another range): %v", newip)
+				clusterwideallocations = append(clusterwideallocations, types.IPReservation{IP: newip.IP, ContainerID: "dummy"})
+				continue
+			}
+
 		case types.Deallocate:
 			updatedreservelist, err = allocate.DeallocateIP(ipamConf.Range, reservelist, containerID)
 			if err != nil {
